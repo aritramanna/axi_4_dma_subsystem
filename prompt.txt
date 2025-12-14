@@ -1,0 +1,173 @@
+Code completion task:
+
+Complete the SystemVerilog RTL code for an AXI4 DMA Subsystem based on the detailed specification provided in /workdir/docs/Specification.md
+
+STRICT RULES:
+1. Do not add any functionality, registers, states, or signals not explicitly described in the specification.
+2. All sequential logic must use asynchronous active-low reset (rst_n) as specified.
+3. AXI4-Lite must support backpressure on all channels; do not assume single-cycle accesses.
+4. Do not tie-off AXI READY/VALID signals unless explicitly allowed by the specification.
+5. Output only synthesizable SystemVerilog code. Do not include explanations or pseudocode.
+6. Do not create any additional modules or files beyond the four explicitly listed.
+7. AXI BRESP and RRESP error responses must be handled and mapped to ERR_AXI_RESP exactly as specified.
+8. All logic operates in a single clock domain driven by clk. Do not add CDC logic.
+
+**Files to Create:**
+You must provide the implementation for the following 4 files:
+1.  **`axi_dma_subsystem.sv`** (Top Level Wrapper)
+2.  **`dma_reg_block.sv`** (Register Interface)
+3.  **`axi_4_dma.sv`** (DMA Protocol Engine, module `axi_dma_master`)
+4.  **`fifo.sv`** (FWFT FIFO, module `fifo_bram_fwft`)
+
+**Functional Requirements:**
+1.  **Architecture**: The DMA must follow a **Store-and-Forward** architecture. It must read the entire burst into the FIFO before beginning the write phase to ensure data integrity and avoid deadlocks.
+2.  **FWFT FIFO Constraint**: The `fifo_bram_fwft` module is critical. It must implement First-Word Fall-Through behavior to support high-bandwidth bursts. **CRITICAL**: You must NOT use a direct combinational path from the backing BRAM to the output `dout`, as this causes timing violations in real hardware. Instead, you MUST implement a **Skid Buffer** (an output pipeline register) to prefetch data and decouple the memory latency while maintaining 0-cycle availability (FWFT).
+3.  **AXI Compliance**: The design must support multiple outstanding transactions limited to 1 Read and 1 Write at a time, with strict ID matching.
+4.  **Register Map**: Implement the control/status registers (`CTRL`, `STATUS`, `SRC`, `DST`, `LEN`) with proper Write-1-to-Clear (W1C) semantics for status bits.
+
+**Partial RTL Code:**
+
+You are provided with the module skeletons. Fill in the internal logic.
+
+```systemverilog
+// 1. TOP LEVEL WRAPPER
+module axi_dma_subsystem #(
+    parameter AXI_ADDR_W = 32,
+    parameter AXI_DATA_W = 128,
+    parameter AXI_ID_W   = 4,
+    parameter FIFO_DEPTH = 256,
+    parameter TIMEOUT_SRC = 100000,
+    parameter TIMEOUT_DST = 100000
+)(
+    input  logic                    clk,
+    input  logic                    rst_n,
+    
+    // AXI4-Lite Slave (Config)
+    input  logic [31:0]             cfg_s_axi_awaddr,
+    input  logic                    cfg_s_axi_awvalid,
+    output logic                    cfg_s_axi_awready,
+    input  logic [31:0]             cfg_s_axi_wdata,
+    input  logic [3:0]              cfg_s_axi_wstrb,
+    input  logic                    cfg_s_axi_wvalid,
+    output logic                    cfg_s_axi_wready,
+    output logic [1:0]              cfg_s_axi_bresp,
+    output logic                    cfg_s_axi_bvalid,
+    input  logic                    cfg_s_axi_bready,
+    input  logic [31:0]             cfg_s_axi_araddr,
+    input  logic                    cfg_s_axi_arvalid,
+    output logic                    cfg_s_axi_arready,
+    output logic [31:0]             cfg_s_axi_rdata,
+    output logic [1:0]              cfg_s_axi_rresp,
+    output logic                    cfg_s_axi_rvalid,
+    input  logic                    cfg_s_axi_rready,
+    
+    // AXI4 Master (Data)
+    output logic [AXI_ID_W-1:0]     m_axi_awid,
+    output logic [AXI_ADDR_W-1:0]   m_axi_awaddr,
+    output logic [7:0]              m_axi_awlen,
+    output logic [2:0]              m_axi_awsize,
+    output logic [1:0]              m_axi_awburst,
+    output logic                    m_axi_awvalid,
+    input  logic                    m_axi_awready,
+    output logic [AXI_DATA_W-1:0]   m_axi_wdata,
+    output logic [AXI_DATA_W/8-1:0] m_axi_wstrb,
+    output logic                    m_axi_wlast,
+    output logic                    m_axi_wvalid,
+    input  logic                    m_axi_wready,
+    input  logic [AXI_ID_W-1:0]     m_axi_bid,
+    input  logic [1:0]              m_axi_bresp,
+    input  logic                    m_axi_bvalid,
+    output logic                    m_axi_bready,
+    output logic [AXI_ID_W-1:0]     m_axi_arid,
+    output logic [AXI_ADDR_W-1:0]   m_axi_araddr,
+    output logic [7:0]              m_axi_arlen,
+    output logic [2:0]              m_axi_arsize,
+    output logic [1:0]              m_axi_arburst,
+    output logic                    m_axi_arvalid,
+    input  logic                    m_axi_arready,
+    input  logic [AXI_ID_W-1:0]     m_axi_rid,
+    input  logic [AXI_DATA_W-1:0]   m_axi_rdata,
+    input  logic [1:0]              m_axi_rresp,
+    input  logic                    m_axi_rlast,
+    input  logic                    m_axi_rvalid,
+    output logic                    m_axi_rready,
+    
+    // Interrupt
+    output logic                    intr_pend
+);
+    // Instantiate dma_reg_block and axi_dma_master here
+endmodule
+
+// 2. REGISTER BLOCK
+module dma_reg_block #(
+    parameter AXI_ADDR_W = 32
+)(
+    input  logic                    clk,
+    input  logic                    rst_n,
+    
+    // AXI4-Lite Interface (Same as top level)
+    input  logic [31:0]             cfg_s_axi_awaddr,
+    // ... complete slave ports ... 
+    
+    // Core Control Interface
+    output logic                    core_start,
+    output logic [31:0]             core_src_addr,
+    output logic [31:0]             core_dst_addr,
+    output logic [31:0]             core_len,
+    input  logic                    core_done,
+    input  logic                    core_busy,
+    input  logic [3:0]              core_status,
+    
+    // Interrupt
+    output logic                    intr_pend
+);
+    // Implement Register Map and Logic
+endmodule
+
+// 3. DMA MASTER CORE
+module axi_dma_master #(
+    parameter AXI_ADDR_W = 32,
+    parameter AXI_DATA_W = 128,
+    parameter AXI_ID_W   = 4,
+    parameter FIFO_DEPTH = 256,
+    parameter TIMEOUT_SRC_CYCLES = 128,
+    parameter TIMEOUT_DST_CYCLES = 128
+)(
+    input  logic                    clk,
+    input  logic                    rst_n,
+    
+    // DMA Control
+    input  logic                    dma_start,
+    input  logic [AXI_ADDR_W-1:0]   dma_src_addr,
+    input  logic [AXI_ADDR_W-1:0]   dma_dst_addr,
+    input  logic [31:0]             dma_length,
+    output logic                    dma_done,
+    output logic [3:0]              dma_completion_status,
+    output logic                    dma_busy,
+    
+    // AXI4 Master Interface (Same as top level)
+    // ...
+);
+    // Instantiate FIFO and implement FSM
+endmodule
+
+// 4. FWFT FIFO (CRITICAL COMPONENT)
+module fifo_bram_fwft #(
+    parameter DATA_W = 128,
+    parameter DEPTH  = 256
+)(
+    input  logic              clk,
+    input  logic              rst_n,
+    input  logic              wr_en,
+    input  logic [DATA_W-1:0] din,
+    input  logic              rd_en,
+    output logic              full,
+    output logic [DATA_W-1:0] dout,
+    output logic              empty
+);
+    // Implement BRAM + Skid Buffer logic for FWFT behavior.
+    // Do NOT use combinational memory reads for dout.
+endmodule
+```
+
+**Important**: This environment uses Icarus Verilog for testing. Avoid using SystemVerilog Assertion (SVA) property/sequence syntax if adding assertions.
