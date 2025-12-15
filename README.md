@@ -46,24 +46,42 @@ Min/Max: 0.00/1.00
 
 ```
 axi4_dma_sub_system/
-├── README.md                          # This file
+├── README.md                          # This submission document
 ├── docs/
-│   └── Specification.md               # Complete design specification
-├── prompt.txt                         # Agent task prompt
+│   └── Specification.md               # Complete design specification (detailed requirements)
+├── prompt.txt                         # Agent task prompt (174 lines)
 ├── pyproject.toml                     # Python dependencies (cocotb, pytest)
-├── sources/                           # RTL implementation directory
-│   ├── axi_dma_subsystem.sv           # Top-level (baseline: empty)
-│   ├── axi_4_dma.sv                   # DMA engine (golden only)
-│   ├── dma_reg_block.sv               # Register block (golden only)
-│   └── fifo.sv                        # FWFT FIFO (golden only)
-└── tests/
-    └── test_axi_dma_hidden.py         # 16 comprehensive cocotb tests
+│
+├── harness/                           # Original test harness (for reference)
+│   ├── patch/
+│   │   └── rtl/                       # Golden solution files (original location)
+│   │       ├── axi_4_dma.sv
+│   │       ├── axi_dma_subsystem.sv
+│   │       ├── dma_reg_block.sv
+│   │       └── fifo.sv
+│   └── test/
+│       └── test_axi_dma_hidden.py     # Original test file (without pytest wrapper)
+│
+├── rtl/                               # Original baseline directory
+│   └── axi_dma_subsystem.sv           # Empty skeleton (original location)
+│
+├── sources/                           # HUD-format RTL directory (used by framework)
+│   ├── axi_dma_subsystem.sv           # Top-level wrapper
+│   ├── axi_4_dma.sv                   # DMA protocol engine
+│   ├── dma_reg_block.sv               # Register interface
+│   └── fifo.sv                        # FWFT FIFO with skid buffer
+│
+└── tests/                             # HUD-format test directory (used by framework)
+    └── test_axi_dma_hidden.py         # 16 cocotb tests + pytest wrapper
 
 Git Branches:
-- axi4_dma_baseline: Empty implementation, no tests
-- axi4_dma_test: Baseline + hidden tests (grading)
-- axi4_dma_golden: Complete solution, no tests (reference)
+- main: Complete repository with all directories
+- axi4_dma_baseline: Empty implementation (sources/axi_dma_subsystem.sv only), NO tests/
+- axi4_dma_test: Baseline + tests/ directory (for grading)
+- axi4_dma_golden: Complete solution in sources/, NO tests/
 ```
+
+**Note**: The `harness/` and `rtl/` directories contain the original problem structure. The HUD framework uses `sources/` and `tests/` directories as specified in the branch structure above.
 
 ---
 
