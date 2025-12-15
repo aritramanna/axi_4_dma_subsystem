@@ -514,7 +514,3 @@ To ensure independent implementation consistency:
 1.  **AXI-Lite Timing**: The Slave interface may exert backpressure (`AWREADY`/`WREADY`/`ARREADY` low). Software must not assume single-cycle completion for register accesses.
 2.  **Performance Contract**: The AXI Master interface is required to support **1 transfer per clock cycle (100% throughput)** during active bursts to meet bandwidth expectations.
 3.  **Reset Observability**: Reset is asynchronous. Software observing the core via JTAG/Debug during a reset event will see `BUSY` drop to 0 immediately. `DONE` and `ERROR` pulses are strictly suppressed during reset to prevent false completion reports.
-
-```
-
-```
