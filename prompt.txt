@@ -11,6 +11,7 @@ STRICT RULES:
 6. Do not create any additional modules or files beyond the four explicitly listed.
 7. AXI BRESP and RRESP error responses must be handled and mapped to ERR_AXI_RESP exactly as specified.
 8. All logic operates in a single clock domain driven by clk. Do not add CDC logic.
+9. Do not modify any module I/O signals (port names, directions, or widths) from the templates provided below. The interfaces must match exactly.
 
 **Files to Create:**
 You must provide the implementation for the following 4 files:
@@ -24,6 +25,7 @@ You must provide the implementation for the following 4 files:
 2.  **FWFT FIFO Constraint**: The `fifo_bram_fwft` module is critical. It must implement First-Word Fall-Through behavior to support high-bandwidth bursts. **CRITICAL**: You must NOT use a direct combinational path from the backing BRAM to the output `dout`, as this causes timing violations in real hardware. Instead, you MUST implement a **Skid Buffer** (an output pipeline register) to prefetch data and decouple the memory latency while maintaining 0-cycle availability (FWFT).
 3.  **AXI Compliance**: The design must support multiple outstanding transactions limited to 1 Read and 1 Write at a time, with strict ID matching.
 4.  **Register Map**: Implement the control/status registers (`CTRL`, `STATUS`, `SRC`, `DST`, `LEN`) with proper Write-1-to-Clear (W1C) semantics for status bits.
+5.  **Latency Requirement**: To satisfy the 100% throughput performance test, the AXI Master interface signals (`m_axi_wvalid`, `m_axi_arvalid`) MUST be driven combinationally from the FIFO/Skid Buffer. Do NOT add output registers to these valid signals, as the added latency will cause throughput violations.
 
 **Partial RTL Code:**
 
@@ -105,9 +107,24 @@ module dma_reg_block #(
     input  logic                    clk,
     input  logic                    rst_n,
     
-    // AXI4-Lite Interface (Same as top level)
+    // AXI4-Lite Slave Interface
     input  logic [31:0]             cfg_s_axi_awaddr,
-    // ... complete slave ports ... 
+    input  logic                    cfg_s_axi_awvalid,
+    output logic                    cfg_s_axi_awready,
+    input  logic [31:0]             cfg_s_axi_wdata,
+    input  logic [3:0]              cfg_s_axi_wstrb,
+    input  logic                    cfg_s_axi_wvalid,
+    output logic                    cfg_s_axi_wready,
+    output logic [1:0]              cfg_s_axi_bresp,
+    output logic                    cfg_s_axi_bvalid,
+    input  logic                    cfg_s_axi_bready,
+    input  logic [31:0]             cfg_s_axi_araddr,
+    input  logic                    cfg_s_axi_arvalid,
+    output logic                    cfg_s_axi_arready,
+    output logic [31:0]             cfg_s_axi_rdata,
+    output logic [1:0]              cfg_s_axi_rresp,
+    output logic                    cfg_s_axi_rvalid,
+    input  logic                    cfg_s_axi_rready,
     
     // Core Control Interface
     output logic                    core_start,
@@ -136,7 +153,7 @@ module axi_dma_master #(
     input  logic                    clk,
     input  logic                    rst_n,
     
-    // DMA Control
+    // DMA Control Interface
     input  logic                    dma_start,
     input  logic [AXI_ADDR_W-1:0]   dma_src_addr,
     input  logic [AXI_ADDR_W-1:0]   dma_dst_addr,
@@ -145,8 +162,48 @@ module axi_dma_master #(
     output logic [3:0]              dma_completion_status,
     output logic                    dma_busy,
     
-    // AXI4 Master Interface (Same as top level)
-    // ...
+    // AXI4 Master Interface
+    // NOTE: Use 'axi_*' prefix (NOT 'm_axi_*') for module ports
+    // The wrapper will connect these to top-level 'm_axi_*' ports
+    
+    // AXI4 Read Address Channel
+    output logic [AXI_ID_W-1:0]     axi_arid,
+    output logic [AXI_ADDR_W-1:0]   axi_araddr,
+    output logic [7:0]              axi_arlen,
+    output logic [2:0]              axi_arsize,
+    output logic [1:0]              axi_arburst,
+    output logic                    axi_arvalid,
+    input  logic                    axi_arready,
+    
+    // AXI4 Read Data Channel
+    input  logic [AXI_ID_W-1:0]     axi_rid,
+    input  logic [AXI_DATA_W-1:0]   axi_rdata,
+    input  logic [1:0]              axi_rresp,
+    input  logic                    axi_rlast,
+    input  logic                    axi_rvalid,
+    output logic                    axi_rready,
+    
+    // AXI4 Write Address Channel
+    output logic [AXI_ID_W-1:0]     axi_awid,
+    output logic [AXI_ADDR_W-1:0]   axi_awaddr,
+    output logic [7:0]              axi_awlen,
+    output logic [2:0]              axi_awsize,
+    output logic [1:0]              axi_awburst,
+    output logic                    axi_awvalid,
+    input  logic                    axi_awready,
+    
+    // AXI4 Write Data Channel
+    output logic [AXI_DATA_W-1:0]   axi_wdata,
+    output logic [AXI_DATA_W/8-1:0] axi_wstrb,
+    output logic                    axi_wlast,
+    output logic                    axi_wvalid,
+    input  logic                    axi_wready,
+    
+    // AXI4 Write Response Channel
+    input  logic [AXI_ID_W-1:0]     axi_bid,
+    input  logic [1:0]              axi_bresp,
+    input  logic                    axi_bvalid,
+    output logic                    axi_bready
 );
     // Instantiate FIFO and implement FSM
 endmodule
