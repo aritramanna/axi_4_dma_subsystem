@@ -12,33 +12,33 @@
 
 ## Evaluation Results
 
-### HUD Evaluation Summary
+### Evolution of Difficulty & Pass Rate
 
-**Configuration**:
+We conducted two major evaluation runs to tune the problem difficulty. The key finding is that **Prompt Engineering works comprehensively**: a single specific constraint added to the prompt moved the pass rate from 3% to 83%.
 
-- Model: Claude Opus 4.5
-- Episodes: 30
-- Max Steps: 150
-- Group Size: 30
+#### Run 1: The "Implicit Spec" Failure (3% Pass)
 
-**Results**:
+- **Job Link**: [View Results](https://www.hud.ai/jobs/a2b89059-db86-439f-b98a-3fdd8b34a75c)
+- **Pass Rate**: 3% (1/30 agents)
+- **Cause**: The prompt broadly requested an "AXI4 DMA" without explicitly mentioning latency constraints. Most agents followed standard FPGA design practices and **registered their output signals** for better timing closure.
+- **Result**: This broke the "Zero-Latency" requirement of the testbench, causing massive throughput failures (latency bubbles) even though the logic was functionally correct.
 
-```
-Pass@10 Rate: 10% (3/30 successful runs)
-Mean Reward: 0.100 ± 0.300
-Min/Max: 0.00/1.00
-```
+#### Run 2: The "Explicit Constraint" Success (83% Pass)
 
-### Difficulty Assessment
+- **Job Link**: [View Results](https://www.hud.ai/jobs/b3a72fb6-d0d8-4acc-8d23-cc4a93126cf4)
+- **Pass Rate**: 83% (25/30 agents)
+- **Difference**: We updated `prompt.txt` to explicitly state:
+  > _"To satisfy the 100% throughput performance test, the AXI Master interface signals ... MUST be driven combinationally ... Do NOT add output registers"_
+- **Result**: Agents successfully adhered to this constraint. The pass rate skyrocketed, proving the agents were capable of complex logic (FWFT FIFO, Skid Buffer, AXI FSM) as long as critical performance constraints were explicit.
 
-**Meets All Criteria**:
+### Difficulty Assessment: Missed Target
 
-- Pass@10 > 0% ✓ (10%)
-- Pass@10 ≤ 30% ✓ (10%)
-- In ideal range (>0% to ≤3/10) ✓
-- Not too easy (>50%) ✓
-- Not unsolvable (0%) ✓
-- Provides strong training signal ✓
+**Target Difficulty**: 10-40% Pass Rate (Hard)
+**Actual Difficulty**: 83% (Too Easy given the new prompt)
+
+We acknowledge that we **failed to meet the 10-40% difficulty goal** with the final configuration. The problem is inherently complex (requiring 400+ lines of RTL, FSMs, and custom FIFOs), but the final prompt provided such clear architectural guidance ("The Golden Hint") that it trivialized the specific challenge that made the task "Hard".
+
+**Conclusion**: To return this to a "Hard" problem, we would need to remove the explicit implementation hint about combinational usage and rely on the agent strictly deriving "100% throughput" requirements from the Specification document alone.
 
 ---
 
@@ -217,7 +217,7 @@ The specification explicitly prohibits direct combinational paths from BRAM to o
 - Concurrent interrupt pending and new start command
 - Mid-flight reset recovery
 
-### Test Coverage (16 Comprehensive Tests)
+### Test Coverage (18 Comprehensive Tests)
 
 1. **Basic Functionality**: Standard 64-byte transfer
 2. **Control Logic**: Block start if interrupt pending
@@ -235,6 +235,8 @@ The specification explicitly prohibits direct combinational paths from BRAM to o
 14. **Watchdog Timers**: Source/destination timeout detection
 15. **Throughput**: 1 cycle/beat performance validation
 16. **Protocol Invariants**: AXI signal stability and WLAST consistency
+17. **FIFO Reset (Source)**: Verify FIFO soft reset prevents stale data corruption after source timeout
+18. **FIFO Reset (Destination)**: Verify FIFO soft reset prevents stale data corruption after destination timeout
 
 ## Technical Specifications
 
