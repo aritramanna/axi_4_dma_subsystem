@@ -68,12 +68,74 @@ Wrapper module that integrates the register block and the DMA core.
 
 ### 2.2 Ports
 
-See "Signal Interface" in previous section for standard AXI ports.
+**Clock and Reset**
 
-- **Clock/Reset**: `clk`, `rst_n`.
-- **AXI Slave**: `cfg_s_axi_*` (32-bit data).
-- **AXI Master**: `m_axi_*` (128-bit data).
-- **Interrupt**: `intr_pend` (Active High).
+| Port Name | Dir | Width | Description       |
+| :-------- | :-- | :---- | :---------------- |
+| `clk`     | In  | 1     | System Clock.     |
+| `rst_n`   | In  | 1     | Active-Low Reset. |
+
+**AXI4-Lite Slave Interface (Configuration)**
+
+| Port Name           | Dir | Width | Description           |
+| :------------------ | :-- | :---- | :-------------------- |
+| `cfg_s_axi_awaddr`  | In  | 32    | Write Address.        |
+| `cfg_s_axi_awvalid` | In  | 1     | Write Address Valid.  |
+| `cfg_s_axi_awready` | Out | 1     | Write Address Ready.  |
+| `cfg_s_axi_wdata`   | In  | 32    | Write Data.           |
+| `cfg_s_axi_wstrb`   | In  | 4     | Write Strobes.        |
+| `cfg_s_axi_wvalid`  | In  | 1     | Write Data Valid.     |
+| `cfg_s_axi_wready`  | Out | 1     | Write Data Ready.     |
+| `cfg_s_axi_bresp`   | Out | 2     | Write Response.       |
+| `cfg_s_axi_bvalid`  | Out | 1     | Write Response Valid. |
+| `cfg_s_axi_bready`  | In  | 1     | Write Response Ready. |
+| `cfg_s_axi_araddr`  | In  | 32    | Read Address.         |
+| `cfg_s_axi_arvalid` | In  | 1     | Read Address Valid.   |
+| `cfg_s_axi_arready` | Out | 1     | Read Address Ready.   |
+| `cfg_s_axi_rdata`   | Out | 32    | Read Data.            |
+| `cfg_s_axi_rresp`   | Out | 2     | Read Response.        |
+| `cfg_s_axi_rvalid`  | Out | 1     | Read Data Valid.      |
+| `cfg_s_axi_rready`  | In  | 1     | Read Data Ready.      |
+
+**AXI4 Master Interface (Data Movement)**
+
+| Port Name       | Dir | Width | Description           |
+| :-------------- | :-- | :---- | :-------------------- |
+| `m_axi_arid`    | Out | 4     | Read Address ID.      |
+| `m_axi_araddr`  | Out | 32    | Read Address.         |
+| `m_axi_arlen`   | Out | 8     | Read Burst Length.    |
+| `m_axi_arsize`  | Out | 3     | Read Burst Size.      |
+| `m_axi_arburst` | Out | 2     | Read Burst Type.      |
+| `m_axi_arvalid` | Out | 1     | Read Address Valid.   |
+| `m_axi_arready` | In  | 1     | Read Address Ready.   |
+| `m_axi_rid`     | In  | 4     | Read ID.              |
+| `m_axi_rdata`   | In  | 128   | Read Data.            |
+| `m_axi_rresp`   | In  | 2     | Read Response.        |
+| `m_axi_rlast`   | In  | 1     | Read Last Beat.       |
+| `m_axi_rvalid`  | In  | 1     | Read Data Valid.      |
+| `m_axi_rready`  | Out | 1     | Read Data Ready.      |
+| `m_axi_awid`    | Out | 4     | Write Address ID.     |
+| `m_axi_awaddr`  | Out | 32    | Write Address.        |
+| `m_axi_awlen`   | Out | 8     | Write Burst Length.   |
+| `m_axi_awsize`  | Out | 3     | Write Burst Size.     |
+| `m_axi_awburst` | Out | 2     | Write Burst Type.     |
+| `m_axi_awvalid` | Out | 1     | Write Address Valid.  |
+| `m_axi_awready` | In  | 1     | Write Address Ready.  |
+| `m_axi_wdata`   | Out | 128   | Write Data.           |
+| `m_axi_wstrb`   | Out | 16    | Write Strobes.        |
+| `m_axi_wlast`   | Out | 1     | Write Last Beat.      |
+| `m_axi_wvalid`  | Out | 1     | Write Data Valid.     |
+| `m_axi_wready`  | In  | 1     | Write Data Ready.     |
+| `m_axi_bid`     | In  | 4     | Write Response ID.    |
+| `m_axi_bresp`   | In  | 2     | Write Response.       |
+| `m_axi_bvalid`  | In  | 1     | Write Response Valid. |
+| `m_axi_bready`  | Out | 1     | Write Response Ready. |
+
+**Interrupt Output**
+
+| Port Name   | Dir | Width | Description                      |
+| :---------- | :-- | :---- | :------------------------------- |
+| `intr_pend` | Out | 1     | Interrupt Pending (Active High). |
 
 ### 2.3 Reset Semantics
 
@@ -105,9 +167,25 @@ Handles the AXI4-Lite Slave interface, maintains Configuration/Status registers,
 
 **AXI4-Lite Slave Interface**
 
-| Port Name     | Dir    | Width | Description                         |
-| :------------ | :----- | :---- | :---------------------------------- |
-| `cfg_s_axi_*` | In/Out | -     | Standard AXI4-Lite Slave Interface. |
+| Port Name           | Dir | Width | Description           |
+| :------------------ | :-- | :---- | :-------------------- |
+| `cfg_s_axi_awaddr`  | In  | 32    | Write Address.        |
+| `cfg_s_axi_awvalid` | In  | 1     | Write Address Valid.  |
+| `cfg_s_axi_awready` | Out | 1     | Write Address Ready.  |
+| `cfg_s_axi_wdata`   | In  | 32    | Write Data.           |
+| `cfg_s_axi_wstrb`   | In  | 4     | Write Strobes.        |
+| `cfg_s_axi_wvalid`  | In  | 1     | Write Data Valid.     |
+| `cfg_s_axi_wready`  | Out | 1     | Write Data Ready.     |
+| `cfg_s_axi_bresp`   | Out | 2     | Write Response.       |
+| `cfg_s_axi_bvalid`  | Out | 1     | Write Response Valid. |
+| `cfg_s_axi_bready`  | In  | 1     | Write Response Ready. |
+| `cfg_s_axi_araddr`  | In  | 32    | Read Address.         |
+| `cfg_s_axi_arvalid` | In  | 1     | Read Address Valid.   |
+| `cfg_s_axi_arready` | Out | 1     | Read Address Ready.   |
+| `cfg_s_axi_rdata`   | Out | 32    | Read Data.            |
+| `cfg_s_axi_rresp`   | Out | 2     | Read Response.        |
+| `cfg_s_axi_rvalid`  | Out | 1     | Read Data Valid.      |
+| `cfg_s_axi_rready`  | In  | 1     | Read Data Ready.      |
 
 **Core Control Interface** (Internal Interface to `axi_dma_master`)
 
@@ -237,11 +315,61 @@ The brain of the operation. Contains the Main FSM, Validation Logic, and AXI Mas
 
 **AXI4 Master Interface**
 
-_See Section 3.3 for full AXI Master signal breakdown._
+The `axi_dma_master` module uses **`axi_*` prefix** for its AXI ports. The wrapper `axi_dma_subsystem` connects these to its external `m_axi_*` ports.
 
-| Port Name | Dir    | Description                           |
-| :-------- | :----- | :------------------------------------ |
-| `m_axi_*` | In/Out | Standard AXI4 Master Interface ports. |
+**Read Address Channel (AR)**
+
+| Port Name     | Dir | Width | Description                  |
+| :------------ | :-- | :---- | :--------------------------- |
+| `axi_arid`    | Out | 4     | Read Address ID.             |
+| `axi_araddr`  | Out | 32    | Read Address.                |
+| `axi_arlen`   | Out | 8     | Burst Length (0-255).        |
+| `axi_arsize`  | Out | 3     | Burst Size (0x4 = 16 bytes). |
+| `axi_arburst` | Out | 2     | Burst Type (01 = INCR).      |
+| `axi_arvalid` | Out | 1     | Read Address Valid.          |
+| `axi_arready` | In  | 1     | Read Address Ready.          |
+
+**Read Data Channel (R)**
+
+| Port Name    | Dir | Width | Description                |
+| :----------- | :-- | :---- | :------------------------- |
+| `axi_rid`    | In  | 4     | Read ID (Must match ARID). |
+| `axi_rdata`  | In  | 128   | Read Data.                 |
+| `axi_rresp`  | In  | 2     | Read Response.             |
+| `axi_rlast`  | In  | 1     | Read Last Beat.            |
+| `axi_rvalid` | In  | 1     | Read Data Valid.           |
+| `axi_rready` | Out | 1     | Read Data Ready.           |
+
+**Write Address Channel (AW)**
+
+| Port Name     | Dir | Width | Description             |
+| :------------ | :-- | :---- | :---------------------- |
+| `axi_awid`    | Out | 4     | Write Address ID.       |
+| `axi_awaddr`  | Out | 32    | Write Address.          |
+| `axi_awlen`   | Out | 8     | Burst Length.           |
+| `axi_awsize`  | Out | 3     | Burst Size.             |
+| `axi_awburst` | Out | 2     | Burst Type (01 = INCR). |
+| `axi_awvalid` | Out | 1     | Write Address Valid.    |
+| `axi_awready` | In  | 1     | Write Address Ready.    |
+
+**Write Data Channel (W)**
+
+| Port Name    | Dir | Width | Description                      |
+| :----------- | :-- | :---- | :------------------------------- |
+| `axi_wdata`  | Out | 128   | Write Data.                      |
+| `axi_wstrb`  | Out | 16    | Write Strobes (Always All-Ones). |
+| `axi_wlast`  | Out | 1     | Write Last Beat.                 |
+| `axi_wvalid` | Out | 1     | Write Data Valid.                |
+| `axi_wready` | In  | 1     | Write Data Ready.                |
+
+**Write Response Channel (B)**
+
+| Port Name    | Dir | Width | Description           |
+| :----------- | :-- | :---- | :-------------------- |
+| `axi_bid`    | In  | 4     | Write Response ID.    |
+| `axi_bresp`  | In  | 2     | Write Response.       |
+| `axi_bvalid` | In  | 1     | Write Response Valid. |
+| `axi_bready` | Out | 1     | Write Response Ready. |
 
 ### 4.2 Functional Description
 
@@ -270,8 +398,15 @@ _See Section 3.3 for full AXI Master signal breakdown._
     - **Timeout**: If counter > `TIMEOUT_CYCLES`, abort to `DONE` with `ERR_TIMEOUT`.
 
 4.  **FIFO Control**:
+
     - `RD_DATA` state drives `fifo_wr_en`.
     - `WR_DATA` state drives `fifo_rd_en` based on `wready`.
+
+5.  **FIFO Soft-Reset**:
+    - When the FSM reaches the `DONE` state (either on successful completion or error), the FIFO must be flushed/soft-reset.
+    - This ensures any stale or incomplete data from timeout conditions, AXI errors, or aborted transfers is discarded.
+    - The soft-reset prepares the FIFO for the next transfer with a clean state.
+    - Implementation: Assert a soft-reset signal to the FIFO when `state == DONE`.
 
 ---
 
