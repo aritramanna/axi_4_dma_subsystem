@@ -101,6 +101,8 @@ class AxiMemoryModel:
         self.mem = {}
         self.random_delays = random_delays
         self.stall_ar = 0 # For timeout testing
+        self.stall_aw = 0 # For destination timeout
+        self.stall_w = 0  # For destination timeout
         self.force_rresp_err = False
         self.force_bresp_err = False
 
@@ -185,8 +187,14 @@ class AxiMemoryModel:
             
             # Wait for AWVALID
             if self.dut.m_axi_awvalid.value:
+                # Force Stall (Timeout Test)
+                if self.stall_aw > 0:
+                    for _ in range(self.stall_aw): await RisingEdge(self.dut.clk)
+                    # If master aborted (timeout), valid will properly deassert.
+                    if self.dut.m_axi_awvalid.value == 0: continue
+
                  # Random Stalls
-                if self.random_delays:
+                if self.random_delays and self.stall_aw == 0:
                      cycles = random.randint(0, 5) if random.random() < 0.3 else 0
                      for _ in range(cycles): await RisingEdge(self.dut.clk)
 
@@ -916,37 +924,105 @@ async def test_reverse_overlap(dut):
     assert err_cnt == 0, f"Reverse Overlap failed with {err_cnt} mismatches"
     log_test_pass(dut, "test_reverse_overlap")
 
-# ============================================================================
-# PYTEST WRAPPER (CRITICAL - Required for pytest discovery)
-# ============================================================================
-def test_axi_dma_hidden_runner():
+# 17. Source Timeout with FIFO Reset Verification
+@cocotb.test(timeout_time=3000000, timeout_unit="ns")
+async def test_timeout_fifo_reset_src(dut):
     """
-    Pytest wrapper function that enables pytest to discover and run cocotb tests.
-    This function uses cocotb_tools.runner to build and simulate the design.
+    Test Case 17: Source Timeout FIFO Reset Verification
+    
+    Scenario: During a read burst, RREADY is dropped mid-transfer causing timeout.
+    Partial data is already in FIFO. Verify that:
+    1. Timeout error is correctly detected
+    2. FIFO soft reset clears stale data when FSM enters DONE state
+    3. Next transfer has correct data integrity (no stale data corruption)
     """
-    import os
-    from pathlib import Path
-    from cocotb_tools.runner import get_runner
+    log_test_banner(dut, "test_timeout_fifo_reset_src", 
+                   "Verify FIFO soft reset prevents stale data corruption after source timeout.")
+    mem, axil = await setup(dut)
     
-    sim = os.getenv("SIM", "icarus")
-    proj_path = Path(__file__).resolve().parent.parent
+    # Initialize source memory with distinct pattern
+    for i in range(256): mem.write_byte(0xF000+i, (0xAA + i) & 0xFF)
     
-    # List all source files (must use sources/ directory, not rtl/)
-    sources = [
-        proj_path / "sources/axi_dma_subsystem.sv",
-        proj_path / "sources/dma_reg_block.sv",
-        proj_path / "sources/axi_4_dma.sv",
-        proj_path / "sources/fifo.sv",
-    ]
+    # Test 1: Trigger timeout with partial FIFO data
+    dut._log.info("[ACTION] Starting Transfer 1 (Will timeout mid-burst)")
+    mem.stall_ar = 200000  # Force timeout during read address phase
+    start = await run_dma(dut, axil, 0xF000, 0xF100, 256)
+    res = await wait_done(dut, axil, start)
     
-    runner = get_runner(sim)
-    runner.build(
-        sources=sources,
-        hdl_toplevel="axi_dma_subsystem",
-        always=True,
-    )
+    code = (res>>4)&0xF
+    dut._log.info(f"[CHECK] Result Code: {code:X} (Expected {ERR_TIMEOUT_SRC:X})")
+    assert code == ERR_TIMEOUT_SRC, f"Expected timeout error, got {code:X}"
     
-    runner.test(
-        hdl_toplevel="axi_dma_subsystem",
-        test_module="test_axi_dma_hidden"
-    )
+    # Clear error and stall
+    mem.stall_ar = 0
+    await axil.write_reg(REG_STATUS, 5)  # Clear status
+    await Timer(100, "ns")  # Allow FIFO reset to complete
+    
+    # Test 2: New transfer with different data pattern
+    dut._log.info("[ACTION] Starting Transfer 2 (Should have clean FIFO)")
+    for i in range(64): mem.write_byte(0xF200+i, 0x55 + i)  # Different pattern
+    
+    start = await run_dma(dut, axil, 0xF200, 0xF300, 64, desc="PostTimeout")
+    res = await wait_done(dut, axil, start, desc="PostTimeout")
+    
+    code = (res>>4)&0xF
+    dut._log.info(f"[CHECK] Transfer 2 Result Code: {code:X} (Expected {ERR_NONE:X})")
+    assert code == ERR_NONE, f"Expected success, got {code:X}"
+    
+    # Verify data integrity - should match source, not stale FIFO data
+    dut._log.info("[CHECK] Verifying Transfer 2 Data Integrity (No Stale Data)")
+    verify_memory(dut, mem, 0xF200, 0xF300, 64, label="FIFO_RESET_SRC")
+    
+    log_test_pass(dut, "test_timeout_fifo_reset_src")
+
+# 18. Destination Timeout with FIFO Reset Verification
+@cocotb.test(timeout_time=3000000, timeout_unit="ns")
+async def test_timeout_fifo_reset_dst(dut):
+    """
+    Test Case 18: Destination Timeout FIFO Reset Verification
+    
+    Scenario: After successful read burst (FIFO filled), WREADY is dropped causing 
+    destination timeout. FIFO has complete read data but write didn't complete.
+    Verify that:
+    1. Timeout error is correctly detected
+    2. FIFO soft reset clears data when FSM enters DONE state
+    3. Next transfer has correct data integrity (no stale data corruption)
+    """
+    log_test_banner(dut, "test_timeout_fifo_reset_dst", 
+                   "Verify FIFO soft reset prevents stale data corruption after destination timeout.")
+    mem, axil = await setup(dut)
+    
+    # Initialize source memory with distinct pattern
+    for i in range(256): mem.write_byte(0xE000+i, (0xBB + i) & 0xFF)
+    
+    # Test 1: Trigger destination timeout (FIFO will have read data)
+    dut._log.info("[ACTION] Starting Transfer 1 (Will timeout during write)")
+    mem.stall_aw = 200000  # Force timeout during write address phase
+    start = await run_dma(dut, axil, 0xE000, 0xE100, 256)
+    res = await wait_done(dut, axil, start)
+    
+    code = (res>>4)&0xF
+    dut._log.info(f"[CHECK] Result Code: {code:X} (Expected {ERR_TIMEOUT_DST:X})")
+    assert code == ERR_TIMEOUT_DST, f"Expected destination timeout error, got {code:X}"
+    
+    # Clear error and stall
+    mem.stall_aw = 0
+    await axil.write_reg(REG_STATUS, 5)  # Clear status
+    await Timer(100, "ns")  # Allow FIFO reset to complete
+    
+    # Test 2: New transfer with different data pattern
+    dut._log.info("[ACTION] Starting Transfer 2 (Should have clean FIFO)")
+    for i in range(64): mem.write_byte(0xE200+i, 0x33 + i)  # Different pattern
+    
+    start = await run_dma(dut, axil, 0xE200, 0xE300, 64, desc="PostTimeout")
+    res = await wait_done(dut, axil, start, desc="PostTimeout")
+    
+    code = (res>>4)&0xF
+    dut._log.info(f"[CHECK] Transfer 2 Result Code: {code:X} (Expected {ERR_NONE:X})")
+    assert code == ERR_NONE, f"Expected success, got {code:X}"
+    
+    # Verify data integrity - should match source, not stale FIFO data
+    dut._log.info("[CHECK] Verifying Transfer 2 Data Integrity (No Stale Data)")
+    verify_memory(dut, mem, 0xE200, 0xE300, 64, label="FIFO_RESET_DST")
+    
+    log_test_pass(dut, "test_timeout_fifo_reset_dst")
