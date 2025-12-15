@@ -5,7 +5,8 @@
 **Submitted by**: Aritra Manna  
 **Submission Date**: December 15, 2024  
 **Contact**: sonya@phinity.ai  
-**Evaluation Link**: https://hud.ai/jobs/02baab4f-a987-4bf9-972d-53666b832b4b
+**Repository**: https://github.com/aritramanna/axi_4_dma_subsystem  
+**Evaluation Link**: https://hud.ai/jobs/02baab4f-a987-4bf9-972d-53666b832b4b _(Private)_
 
 ---
 
@@ -51,12 +52,12 @@ axi4_dma_sub_system/
 ├── prompt.txt                         # Agent task prompt
 ├── pyproject.toml                     # Python dependencies (cocotb, pytest)
 ├── sources/                           # RTL implementation directory
-│   ├── axi_dma_subsystem.sv          # Top-level (baseline: empty)
-│   ├── axi_4_dma.sv                  # DMA engine (golden only)
-│   ├── dma_reg_block.sv              # Register block (golden only)
-│   └── fifo.sv                       # FWFT FIFO (golden only)
+│   ├── axi_dma_subsystem.sv           # Top-level (baseline: empty)
+│   ├── axi_4_dma.sv                   # DMA engine (golden only)
+│   ├── dma_reg_block.sv               # Register block (golden only)
+│   └── fifo.sv                        # FWFT FIFO (golden only)
 └── tests/
-    └── test_axi_dma_hidden.py        # 16 comprehensive cocotb tests
+    └── test_axi_dma_hidden.py         # 16 comprehensive cocotb tests
 
 Git Branches:
 - axi4_dma_baseline: Empty implementation, no tests
